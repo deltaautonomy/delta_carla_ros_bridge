@@ -55,11 +55,16 @@ def polygon_list_to_ros_points(vehicle):
 def publisher(actor_list, ego_vehicle):
     # Setup node
     pub = rospy.Publisher('/carla/ego_vehicle/radar/tracks', RadarTrackArray, queue_size=10)
+    # Change 1
+    pub_GT = rospy.Publisher('/carla/ego_vehicle/tracks/ground_truth', RadarTrackArray, queue_size=10)
 
     # Define RADAR parameters
     theta_range = 2 * np.pi / 3
     dist_range = 150
+    # x, y, z, roll, pitch, yaw
     radar_transform = [2.2, 0, 0.5, 0, 0, 0]
+    # Chnage 2
+    GT_transform = [0, 0, 0, 0, 0, 0]
 
     # Publish at a rate of 13Hz. This is the RADAR frequency
     r = rospy.Rate(13)
@@ -67,6 +72,7 @@ def publisher(actor_list, ego_vehicle):
     # Randomly publish some data
     while not rospy.is_shutdown():
         msg = RadarTrackArray()
+        GT_msg = RadarTrackArray()
         br = tf.TransformBroadcaster()
         br.sendTransform((radar_transform[0], radar_transform[1], radar_transform[2]), \
                       tf.transformations.quaternion_from_euler(radar_transform[3], radar_transform[4], radar_transform[5]), \
@@ -75,6 +81,9 @@ def publisher(actor_list, ego_vehicle):
         # Get list of all detected vehicles
         radar_detections = simulate_radar(theta_range, dist_range,
             actor_list, ego_vehicle, radar_transform)
+        # Change 3
+        GT_detections = simulate_radar_GT(theta_range, dist_range,
+            actor_list, ego_vehicle, GT_transform)
 
         # Iterate over all cars and store their values in RADAR_msgs
         for detection in radar_detections:
@@ -88,11 +97,28 @@ def publisher(actor_list, ego_vehicle):
             # Append to main array
             msg.tracks.append(radar_track)
 
+         # Change 4   
+        for GT in GT_detections:
+            GT_track = RadarTrack()
+            # Assigning RADAR ID
+            GT_track.track_id = GT.id
+            # Assingning three detected points
+            GT_track.track_shape = polygon_list_to_ros_points(GT)
+            # Assigning linear velocity
+            GT_track.linear_velocity = list_to_ros_vector3(GT.velocity)
+            # Append to main array
+            GT_msg.tracks.append(radar_track)
+
+
         # Header stamp and publish the message
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = RADAR_FRAME
         pub.publish(msg)
 
+        # Change 5
+        GT_msg.header.stamp = rospy.Time.now()
+        GT_msg.header.frame_id = VEHICLE_FRAME
+        pub_GT.publish(GT_msg)
         r.sleep()
 
 

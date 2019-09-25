@@ -76,21 +76,6 @@ def radar_noise(std_dev):
 
 
 def add_radar_noise(detected_vehicles, RADAR, model):
-    # n_x = 0.2
-    # n_y = 0.5
-    # n_v = 0.5
-    # # m_x, m_y, m_v = 0.66, 1.50, 2  # change this value for noises after 30m range
-    # for vehicle in detected_vehicles:
-    #     vehicle.y_max += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.y_min += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.y += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.x_max += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.x_min += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.x += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.velocity[0] += radar_noise(vehicle.velocity[0] / 30 + n_v)
-    #     vehicle.velocity[1] += radar_noise(vehicle.velocity[0] / 30 + n_v)
-
-    # return detected_vehicles
     for vehicle in detected_vehicles:
         noise = noiseFunction(vehicle.x, RADAR, "linear")
         vehicle.y_max += noise/3
@@ -151,7 +136,7 @@ def radar_detect_vehicles(env_vehicles, radar):
     return detected_vehicles
 
 
-def parse_veolcity(ego_vehicle, vehicle):
+def parse_velocity(ego_vehicle, vehicle):
     '''Returns velocity with some added noise'''
     H_W_to_ego = get_car_bbox_transform(ego_vehicle)
     x_vel = vehicle.get_velocity().x
@@ -174,7 +159,7 @@ def simulate_radar(theta, r, actor_list, ego_vehicle, radar_transform):
     env_vehicles = []
     # Iterate over vehicles in actor list and create vehicle class objects
     for obj in actor_list:
-        ego_velocity = parse_veolcity(ego_vehicle, obj)
+        ego_velocity = parse_velocity(ego_vehicle, obj)
         x, y, z, x_max, y_max, z_max, x_min, y_min, z_min = get_min_max_bbox(ego_vehicle, obj, radar_transform)
         # All these values are w.r.t the center of the ego vehicle.
         # Tranform these values to the RADAR position
@@ -185,6 +170,20 @@ def simulate_radar(theta, r, actor_list, ego_vehicle, radar_transform):
     detected_vehicles = radar_detect_vehicles(env_vehicles, radar)    
     return detected_vehicles
 
+def simulate_radar_GT(theta, r, actor_list, ego_vehicle, radar_transform):
+    ''' Simulate and visualize RADAR output'''
+    radar = RADAR(theta, r)
+    env_vehicles = []
+    # Iterate over vehicles in actor list and create vehicle class objects
+    for obj in actor_list:
+        ego_velocity = parse_velocity(ego_vehicle, obj)
+        x, y, z, x_max, y_max, z_max, x_min, y_min, z_min = get_min_max_bbox(ego_vehicle, obj, radar_transform)
+        # All these values are w.r.t the center of the ego vehicle.
+        # Tranform these values to the RADAR position
+        pose = np.array([[x, y, z, 1], [x_max, y_max, z_max, 1], [x_min, y_min, z_min, 1]])
+        vehicle = Vehicle(obj.id, x, y, z, x_max, y_max, z_max, x_min, y_min, z_min, ego_velocity)
+        env_vehicles.append(vehicle)
+    return detected_vehicles
 
 def visualize_radar(env_vehicles, detected_vehicles, radar, Truck):
     '''This function shows a scatter plot of vehicles in environment,
