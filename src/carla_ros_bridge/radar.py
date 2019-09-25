@@ -55,34 +55,62 @@ def field_of_view_filter(env_vehicles, radar):
             filtered_vehicles.append(vehicle)
     return filtered_vehicles
 
+# Helper function to add RADAR based on some function
+def noiseFunction(x_pos, RADAR, model):
+    ''' Returns RADAR noise based on distance of object from RADAR'''
+    scaling_factor = RADAR.r
+    # Linear function
+    if model == "linear":
+        temp = 3*x_pos # std_dev cannot be negative
+        noise = np.random.normal(0, np.abs(temp))/scaling_factor
+        return noise
+    # Quadratic Function
+    if model == "quadratic":
+        temp = 2*x_pos*x_pos # std_dev cannot be negative
+        noise = np.random.normal(0, np.abs(temp))/(scaling_factor*scaling_factor)
+        return noise
 
 def radar_noise(std_dev):
     # Assume n is in meters. n=1 means that the Radar has std dev of 1 meter.
     return np.random.normal(0, std_dev)
 
 
-def add_radar_noise(detected_vehicles):
-    n_x = 0.2
-    n_y = 0.5
-    n_v = 0.5
-    # m_x, m_y, m_v = 0.66, 1.50, 2  # change this value for noises after 30m range
-    for vehicle in detected_vehicles:
-        vehicle.y_max += radar_noise(vehicle.x / 50 + n_y)
-        vehicle.y_min += radar_noise(vehicle.x / 50 + n_y)
-        vehicle.y += radar_noise(vehicle.x / 50 + n_y)
-        vehicle.x_max += radar_noise(vehicle.x / 30 + n_x)
-        vehicle.x_min += radar_noise(vehicle.x / 30 + n_x)
-        vehicle.x += radar_noise(vehicle.x / 30 + n_x)
-        vehicle.velocity[0] += radar_noise(vehicle.velocity[0] / 30 + n_v)
-        vehicle.velocity[1] += radar_noise(vehicle.velocity[0] / 30 + n_v)
+def add_radar_noise(detected_vehicles, RADAR, model):
+    # n_x = 0.2
+    # n_y = 0.5
+    # n_v = 0.5
+    # # m_x, m_y, m_v = 0.66, 1.50, 2  # change this value for noises after 30m range
+    # for vehicle in detected_vehicles:
+    #     vehicle.y_max += radar_noise(vehicle.x / 50 + n_y)
+    #     vehicle.y_min += radar_noise(vehicle.x / 50 + n_y)
+    #     vehicle.y += radar_noise(vehicle.x / 50 + n_y)
+    #     vehicle.x_max += radar_noise(vehicle.x / 30 + n_x)
+    #     vehicle.x_min += radar_noise(vehicle.x / 30 + n_x)
+    #     vehicle.x += radar_noise(vehicle.x / 30 + n_x)
+    #     vehicle.velocity[0] += radar_noise(vehicle.velocity[0] / 30 + n_v)
+    #     vehicle.velocity[1] += radar_noise(vehicle.velocity[0] / 30 + n_v)
 
+    # return detected_vehicles
+    for vehicle in detected_vehicles:
+        noise = noiseFunction(vehicle.x, RADAR, "linear")
+        vehicle.y_max += noise/3
+        vehicle.y_min += noise/3
+        vehicle.y += noise/3
+        vehicle.x_max += noise
+        vehicle.x_min += noise
+        vehicle.x += noise
+
+        vehicle.velocity[0] = vehicle.velocity[0] + noise/2
+        vehicle.velocity[1] = vehicle.velocity[0] + noise
     return detected_vehicles
 
 
-def radar_detect_vehicles(env_vehicles, radar_detections):
+
+
+def radar_detect_vehicles(env_vehicles, radar):
     '''Returns list of vehicle objects detected by RADAR'''
 
-    fov_vehicles = field_of_view_filter(env_vehicles, radar_detections)
+    fov_vehicles = field_of_view_filter(env_vehicles, radar)
     if len(fov_vehicles) == 0: return []
     
     # Sort vehicles based on x values
@@ -118,7 +146,8 @@ def radar_detect_vehicles(env_vehicles, radar_detections):
             detected_vehicles.append(vehicle)
     
     # Adding noise
-    detected_vehicles = add_radar_noise(detected_vehicles)
+    model = "linear"
+    detected_vehicles = add_radar_noise(detected_vehicles, radar, model)
     return detected_vehicles
 
 

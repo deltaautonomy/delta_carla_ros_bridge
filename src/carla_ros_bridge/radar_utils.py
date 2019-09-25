@@ -112,7 +112,7 @@ def get_global_bbox(vehicle):
 def get_bbox_ego_vehicle(ego_vehicle, vehicle):
 	''' Gives bounding box corners w.r.t ego-vehicle'''
 	H_W2Ego = get_car_bbox_transform(ego_vehicle)
-	global_bbox = getglobal_bbox(vehicle)
+	global_bbox = get_global_bbox(vehicle)
 	ego_vehicle_bbox = np.matmul(np.linalg.pinv(H_W2Ego), global_bbox)
 
 	return ego_vehicle_bbox
