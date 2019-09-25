@@ -170,7 +170,7 @@ def simulate_radar(theta, r, actor_list, ego_vehicle, radar_transform):
     detected_vehicles = radar_detect_vehicles(env_vehicles, radar)    
     return detected_vehicles
 
-def simulate_radar_GT(theta, r, actor_list, ego_vehicle, radar_transform):
+def simulate_radar_ground_truth(theta, r, actor_list, ego_vehicle, radar_transform):
     ''' Simulate and visualize RADAR output'''
     radar = RADAR(theta, r)
     env_vehicles = []

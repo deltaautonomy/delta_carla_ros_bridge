@@ -21,6 +21,7 @@ from radar_msgs.msg import RadarTrack, RadarTrackArray
 from carla_ros_bridge.bridge import CarlaRosBridge
 from carla_ros_bridge.bridge_with_rosbag import CarlaRosBridgeWithBag
 from carla_ros_bridge.radar import simulate_radar
+from delta_tracking_fusion.msg import Track, TrackArray
 
 RADAR_FRAME = '/ego_vehicle/radar'
 VEHICLE_FRAME = '/ego_vehicle'
@@ -56,7 +57,7 @@ def publisher(actor_list, ego_vehicle):
     # Setup node
     pub = rospy.Publisher('/carla/ego_vehicle/radar/tracks', RadarTrackArray, queue_size=10)
     # Change 1
-    pub_GT = rospy.Publisher('/carla/ego_vehicle/tracks/ground_truth', RadarTrackArray, queue_size=10)
+    pub_ground_truth = rospy.Publisher('/carla/ego_vehicle/tracks/ground_truth', TrackArray, queue_size=10)
 
     # Define RADAR parameters
     theta_range = 2 * np.pi / 3
@@ -64,7 +65,7 @@ def publisher(actor_list, ego_vehicle):
     # x, y, z, roll, pitch, yaw
     radar_transform = [2.2, 0, 0.5, 0, 0, 0]
     # Chnage 2
-    GT_transform = [0, 0, 0, 0, 0, 0]
+    ground_truth_transform = [0, 0, 0, 0, 0, 0]
 
     # Publish at a rate of 13Hz. This is the RADAR frequency
     r = rospy.Rate(13)
@@ -72,7 +73,7 @@ def publisher(actor_list, ego_vehicle):
     # Randomly publish some data
     while not rospy.is_shutdown():
         msg = RadarTrackArray()
-        GT_msg = RadarTrackArray()
+        ground_truth_msg = TrackArray()
         br = tf.TransformBroadcaster()
         br.sendTransform((radar_transform[0], radar_transform[1], radar_transform[2]), \
                       tf.transformations.quaternion_from_euler(radar_transform[3], radar_transform[4], radar_transform[5]), \
@@ -82,8 +83,8 @@ def publisher(actor_list, ego_vehicle):
         radar_detections = simulate_radar(theta_range, dist_range,
             actor_list, ego_vehicle, radar_transform)
         # Change 3
-        GT_detections = simulate_radar_GT(theta_range, dist_range,
-            actor_list, ego_vehicle, GT_transform)
+        ground_truth_detections = simulate_radar_ground_truth(theta_range, dist_range,
+            actor_list, ego_vehicle, ground_truth_transform)
 
         # Iterate over all cars and store their values in RADAR_msgs
         for detection in radar_detections:
@@ -98,16 +99,22 @@ def publisher(actor_list, ego_vehicle):
             msg.tracks.append(radar_track)
 
          # Change 4   
-        for GT in GT_detections:
-            GT_track = RadarTrack()
-            # Assigning RADAR ID
-            GT_track.track_id = GT.id
-            # Assingning three detected points
-            GT_track.track_shape = polygon_list_to_ros_points(GT)
+        for ground_truth_vehicle in ground_truth_detections:
+            ground_truth_track = Track()
+            # Assigning label
+            ground_truth_track.label = "vehicle"
+            # Assingning position
+            ground_truth_track.x = ground_truth_vehicle.x
+            ground_truth_track.y = ground_truth_vehicle.y
             # Assigning linear velocity
-            GT_track.linear_velocity = list_to_ros_vector3(GT.velocity)
+            ground_truth_track.vx = ground_truth_vehicle.velocity[0]
+            ground_truth_track.vy = ground_truth_vehicle.velocity[1]
+            # Assign covariance
+            ground_truth_track.covariance = list(np.eye(4, dtype=np.float64).flatten())
+            # Assign track ID
+            ground_truth_track.track_id = ground_truth_vehicle.id
             # Append to main array
-            GT_msg.tracks.append(radar_track)
+            ground_truth_msg.tracks.append(ground_truth_track)
 
 
         # Header stamp and publish the message
@@ -116,9 +123,9 @@ def publisher(actor_list, ego_vehicle):
         pub.publish(msg)
 
         # Change 5
-        GT_msg.header.stamp = rospy.Time.now()
-        GT_msg.header.frame_id = VEHICLE_FRAME
-        pub_GT.publish(GT_msg)
+        ground_truth_msg.header.stamp = rospy.Time.now()
+        ground_truth_msg.header.frame_id = VEHICLE_FRAME
+        pub_ground_truth.publish(ground_truth_msg)
         r.sleep()
 
 
