@@ -12,7 +12,6 @@ from radar_utils import *
 
 class RADAR:
     ''' This class instantiates a RADAR object'''
-
     def __init__(self, theta, r):
         ''' theta is the angular range of the RADAR.
         range is the distance up to which RADAR detects objects'''
@@ -50,66 +49,48 @@ def field_of_view_filter(env_vehicles, radar):
         # Take the left most point of the vehicle and take abs
         x = vehicle.x_min
         y = vehicle.y_min
-        # print(vehicle.x, vehicle.y)
         if x >= 1 / np.tan(radar.theta / 2) * abs(y) and x <= radar.r and x > 0:
             filtered_vehicles.append(vehicle)
     return filtered_vehicles
 
-# Helper function to add RADAR based on some function
-def noiseFunction(x_pos, RADAR, model):
-    ''' Returns RADAR noise based on distance of object from RADAR'''
-    scaling_factor = RADAR.r
+
+def noise_function(x_pos, radar, model):
+    '''
+    Helper function to add RADAR based on some function
+    Returns RADAR noise based on distance of object from RADAR
+    '''
+    scaling_factor = radar.r
     # Linear function
-    if model == "linear":
-        temp = 3*x_pos # std_dev cannot be negative
-        noise = np.random.normal(0, np.abs(temp))/scaling_factor
+    if model == 'linear':
+        temp = 3 * x_pos # std_dev cannot be negative
+        noise = np.random.normal(0, np.abs(temp)) / scaling_factor
         return noise
     # Quadratic Function
-    if model == "quadratic":
-        temp = 2*x_pos*x_pos # std_dev cannot be negative
-        noise = np.random.normal(0, np.abs(temp))/(scaling_factor*scaling_factor)
+    elif model == 'quadratic':
+        temp = 2 * x_pos * x_pos # std_dev cannot be negative
+        noise = np.random.normal(0, np.abs(temp)) / (scaling_factor * scaling_factor)
         return noise
-
-def radar_noise(std_dev):
-    # Assume n is in meters. n=1 means that the Radar has std dev of 1 meter.
-    return np.random.normal(0, std_dev)
+    else:
+        raise Exception('Noise model not supported')
 
 
-def add_radar_noise(detected_vehicles, RADAR, model):
-    # n_x = 0.2
-    # n_y = 0.5
-    # n_v = 0.5
-    # # m_x, m_y, m_v = 0.66, 1.50, 2  # change this value for noises after 30m range
-    # for vehicle in detected_vehicles:
-    #     vehicle.y_max += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.y_min += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.y += radar_noise(vehicle.x / 50 + n_y)
-    #     vehicle.x_max += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.x_min += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.x += radar_noise(vehicle.x / 30 + n_x)
-    #     vehicle.velocity[0] += radar_noise(vehicle.velocity[0] / 30 + n_v)
-    #     vehicle.velocity[1] += radar_noise(vehicle.velocity[0] / 30 + n_v)
-
-    # return detected_vehicles
+def add_radar_noise(detected_vehicles, radar, model):
     for vehicle in detected_vehicles:
-        noise = noiseFunction(vehicle.x, RADAR, "linear")
-        vehicle.y_max += noise/3
-        vehicle.y_min += noise/3
-        vehicle.y += noise/3
+        noise = noise_function(vehicle.x, radar, 'linear')
+        vehicle.y_max += noise / 3
+        vehicle.y_min += noise / 3
+        vehicle.y += noise / 3
         vehicle.x_max += noise
         vehicle.x_min += noise
         vehicle.x += noise
-
-        vehicle.velocity[0] = vehicle.velocity[0] + noise/2
-        vehicle.velocity[1] = vehicle.velocity[0] + noise
+        vehicle.velocity[0] = vehicle.velocity[0] + noise / 3
+        vehicle.velocity[1] = vehicle.velocity[1] + noise / 5
+    
     return detected_vehicles
-
-
 
 
 def radar_detect_vehicles(env_vehicles, radar):
     '''Returns list of vehicle objects detected by RADAR'''
-
     fov_vehicles = field_of_view_filter(env_vehicles, radar)
     if len(fov_vehicles) == 0: return []
     
@@ -137,17 +118,14 @@ def radar_detect_vehicles(env_vehicles, radar):
             detected_vehicles.append(vehicle)
         else:
             for m in slopes:
-                if m1 < m[0] or m2 > m[1]:
-                    flag = True
-                else:
-                    flag = False
-        if flag == True:
+                if m1 < m[0] or m2 > m[1]: flag = True
+                else: flag = False
+        if flag:
             slopes.append([m1, m2])
             detected_vehicles.append(vehicle)
     
-    # Adding noise
-    model = "linear"
-    detected_vehicles = add_radar_noise(detected_vehicles, radar, model)
+    # Adding noise to RADAR state
+    detected_vehicles = add_radar_noise(detected_vehicles, radar, model='linear')
     return detected_vehicles
 
 
@@ -166,8 +144,6 @@ def parse_veolcity(ego_vehicle, vehicle):
     return vel_ego
 
 
-# This is the final function that needs to run in order to visualize
-# a RADAR output
 def simulate_radar(theta, r, actor_list, ego_vehicle, radar_transform):
     ''' Simulate and visualize RADAR output'''
     radar = RADAR(theta, r)
@@ -198,10 +174,10 @@ def visualize_radar(env_vehicles, detected_vehicles, radar, Truck):
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
 
-    ax1.scatter(env_plot[:, 0], env_plot[:, 1], s=10, c='b', marker="s", label='All vehicles')
+    ax1.scatter(env_plot[:, 0], env_plot[:, 1], s=10, c='b', marker='s', label='All vehicles')
     if len(detected_vehicles) != 0:
-        ax1.scatter(det_plot[:, 0], det_plot[:, 1], s=10, c='r', marker="o", label='Detected Vehicles')
-    ax1.scatter(Truck.x, Truck.y, s=15, c='g', marker="+", label='Ego Vehicle')
+        ax1.scatter(det_plot[:, 0], det_plot[:, 1], s=10, c='r', marker='o', label='Detected Vehicles')
+    ax1.scatter(Truck.x, Truck.y, s=15, c='g', marker='+', label='Ego Vehicle')
     
     # Plot RADAR FOV
     xlim = np.tan(radar.theta / 2) * radar.r
