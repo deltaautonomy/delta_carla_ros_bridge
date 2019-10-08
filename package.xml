@@ -24,6 +24,11 @@
   <exec_depend>rosgraph_msgs</exec_depend>
   <build_depend>message_generation</build_depend>
   <exec_depend>message_runtime</exec_depend>
+
+  <build_depend>delta_tracking_fusion</build_depend>
+  <build_export_depend>delta_tracking_fusion</build_export_depend>
+  <exec_depend>delta_tracking_fusion</exec_depend>
+
   <export>
   </export>
 </package>

@@ -20,7 +20,7 @@ from radar_msgs.msg import RadarTrack, RadarTrackArray
 
 from carla_ros_bridge.bridge import CarlaRosBridge
 from carla_ros_bridge.bridge_with_rosbag import CarlaRosBridgeWithBag
-from carla_ros_bridge.radar import simulate_radar
+from carla_ros_bridge.radar import simulate_radar, simulate_radar_ground_truth
 from delta_tracking_fusion.msg import Track, TrackArray
 
 RADAR_FRAME = '/ego_vehicle/radar'
@@ -56,7 +56,6 @@ def polygon_list_to_ros_points(vehicle):
 def publisher(actor_list, ego_vehicle):
     # Setup node
     pub = rospy.Publisher('/carla/ego_vehicle/radar/tracks', RadarTrackArray, queue_size=10)
-    # Change 1
     pub_ground_truth = rospy.Publisher('/carla/ego_vehicle/tracks/ground_truth', TrackArray, queue_size=10)
 
     # Define RADAR parameters
@@ -64,16 +63,13 @@ def publisher(actor_list, ego_vehicle):
     dist_range = 150
     # x, y, z, roll, pitch, yaw
     radar_transform = [2.2, 0, 0.5, 0, 0, 0]
-    # Chnage 2
     ground_truth_transform = [0, 0, 0, 0, 0, 0]
 
     # Publish at a rate of 13Hz. This is the RADAR frequency
-    r = rospy.Rate(13)
+    rate = rospy.Rate(13)
 
     # Randomly publish some data
     while not rospy.is_shutdown():
-        msg = RadarTrackArray()
-        ground_truth_msg = TrackArray()
         br = tf.TransformBroadcaster()
         br.sendTransform((radar_transform[0], radar_transform[1], radar_transform[2]), \
                       tf.transformations.quaternion_from_euler(radar_transform[3], radar_transform[4], radar_transform[5]), \
@@ -82,11 +78,11 @@ def publisher(actor_list, ego_vehicle):
         # Get list of all detected vehicles
         radar_detections = simulate_radar(theta_range, dist_range,
             actor_list, ego_vehicle, radar_transform)
-        # Change 3
         ground_truth_detections = simulate_radar_ground_truth(theta_range, dist_range,
             actor_list, ego_vehicle, ground_truth_transform)
 
-        # Iterate over all cars and store their values in RADAR_msgs
+        # Iterate over all cars and store their values in RadarTrackArray
+        radar_msg = RadarTrackArray()
         for detection in radar_detections:
             radar_track = RadarTrack()
             # Assigning RADAR ID
@@ -96,9 +92,10 @@ def publisher(actor_list, ego_vehicle):
             # Assigning linear velocity
             radar_track.linear_velocity = list_to_ros_vector3(detection.velocity)
             # Append to main array
-            msg.tracks.append(radar_track)
+            radar_msg.tracks.append(radar_track)
 
-         # Change 4   
+        # Iterate over all cars and store their values in TrackArray
+        ground_truth_msg = TrackArray()
         for ground_truth_vehicle in ground_truth_detections:
             ground_truth_track = Track()
             # Assigning label
@@ -116,17 +113,17 @@ def publisher(actor_list, ego_vehicle):
             # Append to main array
             ground_truth_msg.tracks.append(ground_truth_track)
 
+        # Header stamp and publish the RADAR message
+        radar_msg.header.stamp = rospy.Time.now()
+        radar_msg.header.frame_id = RADAR_FRAME
+        pub.publish(radar_msg)
 
-        # Header stamp and publish the message
-        msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = RADAR_FRAME
-        pub.publish(msg)
-
-        # Change 5
+        # Header stamp and publish the ground truth message
         ground_truth_msg.header.stamp = rospy.Time.now()
         ground_truth_msg.header.frame_id = VEHICLE_FRAME
         pub_ground_truth.publish(ground_truth_msg)
-        r.sleep()
+        
+        rate.sleep()
 
 
 def main():
@@ -135,7 +132,6 @@ def main():
     maintaiing the communication client and the CarlaRosBridge objects
     """
     rospy.init_node("radar_client", anonymous=True)
-
     params = rospy.get_param('carla')
     host = params['host']
     port = params['port']
@@ -145,16 +141,9 @@ def main():
     try:
         carla_client = carla.Client(host=host, port=port)
         carla_client.set_timeout(2000)
-
         carla_world = carla_client.get_world()
+        rospy.loginfo("Connected")\
 
-        rospy.loginfo("Connected")
-
-        # bridge_cls = CarlaRosBridge
-        # carla_ros_bridge = bridge_cls(
-        #     carla_world=carla_client.get_world(), params=params)
-        # carla_ros_bridge.run()
-        # carla_ros_bridge = None
         # Get all  vehicle actors in environment
         actor_list = carla_world.get_actors().filter('vehicle.*')
         npc_list = []
