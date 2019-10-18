@@ -4,19 +4,20 @@
 
 from __future__ import division
 
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 
 from radar_utils import *
 
 
-class RADAR:
+class RadarParams:
     ''' This class instantiates a RADAR object'''
-    def __init__(self, theta, r):
+    def __init__(self, theta, radius):
         ''' theta is the angular range of the RADAR.
         range is the distance up to which RADAR detects objects'''
         self.theta = theta
-        self.r = r
+        self.r = radius
 
 
 class Vehicle:
@@ -25,27 +26,27 @@ class Vehicle:
 
     # NOTE: y_max is not actually max y co-ordinate and similarly for y_min
     # NOTE: Get actual vehicle ID to add as an attribute
-    def __init__(self, obj_id, x, y, z, x_max, y_max, z_max, x_min, y_min, z_min, velocity):
-        self.id = obj_id
-        self.x = x
-        self.y = y
-        self.z = z
-        self.x_max = x_max  # box looks like [[x_max,y], [x_min,y]]
-        self.y_max = y_max
-        self.z_max = z_max
-        self.x_min = x_min
-        self.y_min = y_min
-        self.z_min = z_min
+    def __init__(self, actor_id, bbox, velocity):
+        self.id = actor_id
+        self.x = bbox[0]
+        self.y = bbox[1]
+        self.z = bbox[2]
+        self.x_max = bbox[3]
+        self.y_max = bbox[4]
+        self.z_max = bbox[5]
+        self.x_min = bbox[6]
+        self.y_min = bbox[7]
+        self.z_min = bbox[8]
         self.velocity = velocity
 
 
-def field_of_view_filter(env_vehicles, radar):
+def field_of_view_filter(vehicles, radar):
     '''Given a list of vehicles in the environment. This function filters all
     those vehicles that are not in the field of view(FOV) of the RADAR.
     It returns a list of vehicles (x,y,yaw) of all vehicles in FOV'''
     # Iterate over all y values of vehicles
     filtered_vehicles = []
-    for vehicle in env_vehicles:
+    for vehicle in vehicles:
         # Take the left most point of the vehicle and take abs
         x = vehicle.x_min
         y = vehicle.y_min
@@ -83,15 +84,15 @@ def add_radar_noise(detected_vehicles, radar, model):
         vehicle.x_max += noise
         vehicle.x_min += noise
         vehicle.x += noise
-        vehicle.velocity[0] = vehicle.velocity[0] + noise / 3
-        vehicle.velocity[1] = vehicle.velocity[1] + noise / 5
+        vehicle.velocity[0] += noise / 3
+        vehicle.velocity[1] += noise / 5
 
     return detected_vehicles
 
 
-def radar_detect_vehicles(env_vehicles, radar):
+def detect_vehicles_fov(vehicles, radar):
     '''Returns list of vehicle objects detected by RADAR'''
-    fov_vehicles = field_of_view_filter(env_vehicles, radar)
+    fov_vehicles = field_of_view_filter(vehicles, radar)
     if len(fov_vehicles) == 0: return []
     
     # Sort vehicles based on x values
@@ -142,51 +143,30 @@ def parse_velocity(ego_vehicle, vehicle):
     return vel_ego
 
 
-def simulate_radar(theta, r, actor_list, ego_vehicle, radar_transform):
-    ''' Simulate and visualize RADAR output'''
-    radar = RADAR(theta, r)
-    env_vehicles = []
-    # Iterate over vehicles in actor list and create vehicle class objects
-    for obj in actor_list:
-        ego_velocity = parse_velocity(ego_vehicle, obj)
-        x, y, z, x_max, y_max, z_max, x_min, y_min, z_min = get_min_max_bbox(ego_vehicle, obj, radar_transform)
-        # All these values are w.r.t the center of the ego vehicle.
-        # Tranform these values to the RADAR position
-        pose = np.array([[x, y, z, 1], [x_max, y_max, z_max, 1], [x_min, y_min, z_min, 1]])
-        vehicle = Vehicle(obj.id, x, y, z, x_max, y_max, z_max, x_min, y_min, z_min, ego_velocity)
-        env_vehicles.append(vehicle)
-
-    # Adding noise to RADAR state
-    detected_vehicles = radar_detect_vehicles(env_vehicles, radar)    
-    detected_vehicles = add_radar_noise(detected_vehicles, radar, model='linear')
-    return detected_vehicles
+def get_all_vehicles(actor_list, ego_vehicle, transform):
+    vehicles = []
+    for actor in actor_list:
+        ego_velocity = parse_velocity(ego_vehicle, actor)
+        bbox = get_bounding_box(ego_vehicle, actor, transform)
+        vehicles.append(Vehicle(actor.id, bbox, ego_velocity))
+    return vehicles
 
 
-def simulate_radar_ground_truth(theta, r, actor_list, ego_vehicle, radar_transform):
-    ''' Simulate and visualize RADAR output'''
-    radar = RADAR(theta, r)
-    env_vehicles = []
-    # Iterate over vehicles in actor list and create vehicle class objects
-    for obj in actor_list:
-        ego_velocity = parse_velocity(ego_vehicle, obj)
-        x, y, z, x_max, y_max, z_max, x_min, y_min, z_min = get_min_max_bbox(ego_vehicle, obj, radar_transform)
-        # All these values are w.r.t the center of the ego vehicle.
-        # Tranform these values to the RADAR position
-        pose = np.array([[x, y, z, 1], [x_max, y_max, z_max, 1], [x_min, y_min, z_min, 1]])
-        vehicle = Vehicle(obj.id, x, y, z, x_max, y_max, z_max, x_min, y_min, z_min, ego_velocity)
-        env_vehicles.append(vehicle)
-
-    detected_vehicles = radar_detect_vehicles(env_vehicles, radar)    
-    return detected_vehicles
+def simulate_radar(theta, radius, vehicles):
+    '''Simulate and visualize RADAR output'''
+    radar = RadarParams(theta, radius)
+    detected_vehicles = detect_vehicles_fov(vehicles, radar)
+    detected_vehicles_noise = add_radar_noise(copy.deepcopy(detected_vehicles), radar, model='linear')
+    return detected_vehicles, detected_vehicles_noise
 
 
-def visualize_radar(env_vehicles, detected_vehicles, radar, Truck):
+def visualize_radar(vehicles, detected_vehicles, radar, Truck):
     '''This function shows a scatter plot of vehicles in environment,
     the RADAR detected vehicles, and the ego vehicle'''
-    env_plot = [[env_v.x, env_v.y] for env_v in env_vehicles]
+    env_plot = [[vehicle.x, vehicle.y] for vehicle in vehicles]
     env_plot = np.asarray(env_plot)
 
-    det_plot = [[det_v.x, det_v.y] for det_v in detected_vehicles]
+    det_plot = [[vehicle.x, vehicle.y] for vehicle in detected_vehicles]
     det_plot = np.asarray(det_plot)
 
     fig = plt.figure()

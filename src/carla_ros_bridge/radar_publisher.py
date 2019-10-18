@@ -20,7 +20,7 @@ from radar_msgs.msg import RadarTrack, RadarTrackArray
 
 from carla_ros_bridge.bridge import CarlaRosBridge
 from carla_ros_bridge.bridge_with_rosbag import CarlaRosBridgeWithBag
-from carla_ros_bridge.radar import simulate_radar, simulate_radar_ground_truth
+from carla_ros_bridge.radar import simulate_radar, get_all_vehicles
 from delta_tracking_fusion.msg import Track, TrackArray
 
 RADAR_FRAME = '/ego_vehicle/radar'
@@ -41,15 +41,15 @@ def polygon_list_to_ros_points(vehicle):
     mid_point = Point()
     mid_point.x, mid_point.y, mid_point.z = vehicle.x, vehicle.y, vehicle.z
     output_polygon.points.append(mid_point)
-    
+
     max_point = Point()
     max_point.x, max_point.y, max_point.z = vehicle.x_max, vehicle.y_max, vehicle.z_max
     output_polygon.points.append(max_point)
-    
+
     min_point = Point()
     min_point.x, min_point.y, min_point.z = vehicle.x_min, vehicle.y_min, vehicle.z_min
     output_polygon.points.append(min_point)
-    
+
     return output_polygon
 
 
@@ -61,7 +61,8 @@ def publisher(actor_list, ego_vehicle):
     # Define RADAR parameters
     theta_range = 2 * np.pi / 3
     dist_range = 150
-    # x, y, z, roll, pitch, yaw
+
+    # Transform: [x, y, z, roll, pitch, yaw]
     radar_transform = [2.2, 0, 0.5, 0, 0, 0]
     ground_truth_transform = [0, 0, 0, 0, 0, 0]
 
@@ -75,43 +76,33 @@ def publisher(actor_list, ego_vehicle):
                       tf.transformations.quaternion_from_euler(radar_transform[3], radar_transform[4], radar_transform[5]), \
                       rospy.Time.now(), RADAR_FRAME, VEHICLE_FRAME)
 
-        # Get list of all detected vehicles
-        radar_detections = simulate_radar(theta_range, dist_range,
-            actor_list, ego_vehicle, radar_transform)
-        ground_truth_detections = simulate_radar_ground_truth(theta_range, dist_range,
-            actor_list, ego_vehicle, ground_truth_transform)
+        # Get list of all vehicles in Carla
+        vehicles = get_all_vehicles(actor_list, ego_vehicle, radar_transform)
 
-        # Iterate over all cars and store their values in RadarTrackArray
+        # Get list of all detected vehicles
+        radar_detections, ground_truth = simulate_radar(theta_range, dist_range, vehicles)
+
+        # Publish RadarTrackArray
         radar_msg = RadarTrackArray()
         for detection in radar_detections:
             radar_track = RadarTrack()
-            # Assigning RADAR ID
             radar_track.track_id = detection.id
-            # Assingning three detected points
             radar_track.track_shape = polygon_list_to_ros_points(detection)
-            # Assigning linear velocity
             radar_track.linear_velocity = list_to_ros_vector3(detection.velocity)
-            # Append to main array
             radar_msg.tracks.append(radar_track)
 
-        # Iterate over all cars and store their values in TrackArray
+        # Publish TrackArray
         ground_truth_msg = TrackArray()
-        for ground_truth_vehicle in ground_truth_detections:
-            ground_truth_track = Track()
-            # Assigning label
-            ground_truth_track.label = "vehicle"
-            # Assingning position
-            ground_truth_track.x = ground_truth_vehicle.x
-            ground_truth_track.y = ground_truth_vehicle.y
-            # Assigning linear velocity
-            ground_truth_track.vx = ground_truth_vehicle.velocity[0]
-            ground_truth_track.vy = ground_truth_vehicle.velocity[1]
-            # Assign covariance
-            ground_truth_track.covariance = list(np.eye(4, dtype=np.float64).flatten())
-            # Assign track ID
-            ground_truth_track.track_id = ground_truth_vehicle.id
-            # Append to main array
-            ground_truth_msg.tracks.append(ground_truth_track)
+        for ground_truth_vehicle in ground_truth:
+            track = Track()
+            track.label = "vehicle"
+            track.x = ground_truth_vehicle.x - radar_transform[0]
+            track.y = ground_truth_vehicle.y - radar_transform[1]
+            track.vx = ground_truth_vehicle.velocity[0]
+            track.vy = ground_truth_vehicle.velocity[1]
+            track.covariance = list(np.eye(4, dtype=np.float64).flatten())
+            track.track_id = ground_truth_vehicle.id
+            ground_truth_msg.tracks.append(track)
 
         # Header stamp and publish the RADAR message
         radar_msg.header.stamp = rospy.Time.now()

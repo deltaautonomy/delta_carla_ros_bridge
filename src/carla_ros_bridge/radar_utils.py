@@ -130,7 +130,7 @@ def get_radar_bbox(ego_vehicle_bbox, vehicle_to_radar_transform):
 	return radar_bbox
 
 
-def get_min_max_bbox(ego_vehicle, vehicle, vehicle_to_radar_transform):
+def get_bounding_box(ego_vehicle, vehicle, vehicle_to_radar_transform):
 	''' Get max vals of bounding box'''
 	# NOTE: The return values are w.r.t to the RADAR
 	# Carla does it opposite
