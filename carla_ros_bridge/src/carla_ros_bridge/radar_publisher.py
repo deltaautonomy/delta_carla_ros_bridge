@@ -21,7 +21,7 @@ from radar_msgs.msg import RadarTrack, RadarTrackArray
 from carla_ros_bridge.bridge import CarlaRosBridge
 from carla_ros_bridge.bridge_with_rosbag import CarlaRosBridgeWithBag
 from carla_ros_bridge.radar import simulate_radar, get_all_vehicles
-from delta_tracking_fusion.msg import Track, TrackArray
+from delta_msgs.msg import Track, TrackArray
 
 RADAR_FRAME = '/ego_vehicle/radar'
 VEHICLE_FRAME = '/ego_vehicle'
