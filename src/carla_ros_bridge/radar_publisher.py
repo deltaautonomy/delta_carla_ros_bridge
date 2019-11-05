@@ -80,7 +80,7 @@ def publisher(actor_list, ego_vehicle):
         vehicles = get_all_vehicles(actor_list, ego_vehicle, radar_transform)
 
         # Get list of all detected vehicles
-        radar_detections, ground_truth = simulate_radar(theta_range, dist_range, vehicles)
+        ground_truth, radar_detections = simulate_radar(theta_range, dist_range, vehicles)
 
         # Publish RadarTrackArray
         radar_msg = RadarTrackArray()
