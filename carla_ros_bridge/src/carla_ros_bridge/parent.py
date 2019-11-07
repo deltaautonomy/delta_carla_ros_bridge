@@ -20,7 +20,7 @@ from std_msgs.msg import Header
 class Parent(object):
 
     """
-    Factory class to create actors and manage lifecylce of the children objects
+    Factory class to create actors and manage lifecycle of the children objects
     """
 
     def __init__(self, carla_id, carla_world, frame_id):
@@ -99,21 +99,37 @@ class Parent(object):
             if ((actor.parent and actor.parent.id == self.carla_id)
                     or (actor.parent is None and self.carla_id == 0)):
                 if actor.id not in self.child_actors:
-                    if actor.type_id.startswith('traffic'):
-                        self.new_child_actors[actor.id] = Traffic.create_actor(
-                            carla_actor=actor, parent=self)
-                    elif actor.type_id.startswith("vehicle"):
-                        self.new_child_actors[actor.id] = Vehicle.create_actor(
-                            carla_actor=actor, parent=self)
-                    elif actor.type_id.startswith("sensor"):
-                        self.new_child_actors[actor.id] = Sensor.create_actor(
-                            carla_actor=actor, parent=self)
-                    elif actor.type_id.startswith("spectator"):
-                        self.new_child_actors[actor.id] = Spectator(
-                            carla_actor=actor, parent=self)
+                    if self.get_param("challenge_mode"):
+                        # in challenge mode only the ego vehicle and its sensors are created
+                        if actor.type_id.startswith("vehicle") and \
+                                (actor.attributes.get('role_name') ==
+                                 self.get_param('ego_vehicle').get('role_name')):
+                            self.new_child_actors[actor.id] = EgoVehicle.create_actor(
+                                carla_actor=actor, parent=self)
+                        elif actor.type_id.startswith("sensor"):
+                            self.new_child_actors[actor.id] = Sensor.create_actor(
+                                carla_actor=actor, parent=self)
                     else:
-                        self.new_child_actors[actor.id] = Actor(
-                            carla_actor=actor, parent=self)
+                        if actor.type_id.startswith('traffic'):
+                            self.new_child_actors[actor.id] = Traffic.create_actor(
+                                carla_actor=actor, parent=self)
+                        elif actor.type_id.startswith("vehicle"):
+                            if actor.attributes.get('role_name') in \
+                                    self.get_param('ego_vehicle').get('role_name'):
+                                self.new_child_actors[actor.id] = EgoVehicle.create_actor(
+                                    carla_actor=actor, parent=self)
+                            else:
+                                self.new_child_actors[actor.id] = Vehicle.create_actor(
+                                    carla_actor=actor, parent=self)
+                        elif actor.type_id.startswith("sensor"):
+                            self.new_child_actors[actor.id] = Sensor.create_actor(
+                                carla_actor=actor, parent=self)
+                        elif actor.type_id.startswith("spectator"):
+                            self.new_child_actors[actor.id] = Spectator(
+                                carla_actor=actor, parent=self)
+                        else:
+                            self.new_child_actors[actor.id] = Actor(
+                                carla_actor=actor, parent=self)
 
     def get_dead_child_actors(self):
         """
@@ -125,7 +141,7 @@ class Parent(object):
             if not child_actor.carla_actor.is_alive:
                 rospy.loginfo(
                     "Detected non alive child Actor(id={})".format(child_actor_id))
-                self.dead_child_actors.append(child_actor_id)
+                self.dead_child_actors.append(child_actor)
             else:
                 found_actor = False
                 for actor in self.carla_world.get_actors():
@@ -135,7 +151,7 @@ class Parent(object):
                 if not found_actor:
                     rospy.loginfo(
                         "Detected not existing child Actor(id={})".format(child_actor_id))
-                    self.dead_child_actors.append(child_actor_id)
+                    self.dead_child_actors.append(child_actor)
 
     def update_child_actors(self):
         """
@@ -155,7 +171,8 @@ class Parent(object):
 
         if len(self.dead_child_actors) > 0 or len(self.new_child_actors) > 0:
             with self.update_child_actor_list_lock:
-                for actor_id in self.dead_child_actors:
+                for actor in self.dead_child_actors:
+                    actor_id = actor.carla_actor.id
                     self.child_actors[actor_id].destroy()
                     del self.child_actors[actor_id]
                 self.dead_child_actors = []
@@ -183,8 +200,13 @@ class Parent(object):
         :return:
         """
         with self.update_child_actor_list_lock:
-            for dummy_actor_id, actor in self.child_actors.iteritems():
-                actor.update()
+            for actor_id, actor in self.child_actors.iteritems():
+                try:
+                    actor.update()
+                except RuntimeError as e:
+                    rospy.logwarn("Update actor {}({}) failed: {}".format(
+                        actor.__class__.__name__, actor_id, e))
+                    continue
 
     def get_msg_header(self):
         """
@@ -216,7 +238,7 @@ class Parent(object):
             "If this error becomes visible the class hierarchy is somehow broken")
 
     @abstractmethod
-    def publish_ros_message(self, topic, msg):
+    def publish_ros_message(self, topic, msg, is_latched=False):
         """
         Pure virtual function to publish ROS messages via
         the carla_ros_bridge.CarlaRosBridge parent root.
@@ -287,6 +309,20 @@ class Parent(object):
             "carla_ros_bridge.Child and carla_ros_bridge.CarlaRosBridge"
             "If this error becomes visible the class hierarchy is somehow broken")
 
+    @abstractmethod
+    def get_filtered_objectarray(self, filtered_id):
+        """
+        Pure virtual function to get objectarray of available actors, except
+        the one with the filtered id
+
+        :return: objectarray of actors
+        :rtype: derived_object_msgs.ObjectArray
+        """
+        raise NotImplementedError(
+            "This function is re-implemented by"
+            "carla_ros_bridge.Child and carla_ros_bridge.CarlaRosBridge"
+            "If this error becomes visible the class hierarchy is somehow broken")
+
 
 # these imports have to be at the end to resolve cyclic dependency
 from carla_ros_bridge.actor import Actor         # noqa, pylint: disable=wrong-import-position
@@ -294,3 +330,4 @@ from carla_ros_bridge.spectator import Spectator  # noqa, pylint: disable=wrong-
 from carla_ros_bridge.sensor import Sensor       # noqa, pylint: disable=wrong-import-position
 from carla_ros_bridge.traffic import Traffic     # noqa, pylint: disable=wrong-import-position
 from carla_ros_bridge.vehicle import Vehicle     # noqa, pylint: disable=wrong-import-position
+from carla_ros_bridge.ego_vehicle import EgoVehicle  # noqa, pylint: disable=wrong-import-position

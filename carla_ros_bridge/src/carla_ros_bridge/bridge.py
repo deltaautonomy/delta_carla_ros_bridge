@@ -21,6 +21,7 @@ from derived_object_msgs.msg import ObjectArray
 
 from carla_ros_bridge.parent import Parent
 from carla_ros_bridge.map import Map
+import carla_ros_bridge.object_sensor as ObjectSensor
 
 
 class CarlaRosBridge(Parent):
@@ -49,12 +50,12 @@ class CarlaRosBridge(Parent):
         self.actor_list = []
 
         # register callback to create/delete actors
-        self.carla_world.on_tick(self._carla_update_child_actors)
         self.update_child_actors_lock = threading.Lock()
+        self.carla_world.on_tick(self._carla_update_child_actors)
 
         # register callback to update actors
-        self.carla_world.on_tick(self._carla_time_tick)
         self.update_lock = threading.Lock()
+        self.carla_world.on_tick(self._carla_time_tick)
 
         self.publishers = {}
         self.publishers['clock'] = rospy.Publisher(
@@ -63,9 +64,10 @@ class CarlaRosBridge(Parent):
         self.publishers['tf'] = rospy.Publisher(
             'tf', TFMessage, queue_size=100)
 
-        self.publishers['/carla/objects'] = rospy.Publisher(
-            '/carla/objects', ObjectArray, queue_size=10)
-        self.object_array = ObjectArray()
+        if not self.get_param("challenge_mode"):
+            self.publishers['/carla/objects'] = rospy.Publisher(
+                '/carla/objects', ObjectArray, queue_size=10)
+            self.object_array = ObjectArray()
 
         self.map = Map(carla_world=self.carla_world, parent=self, topic='/map')
 
@@ -95,7 +97,7 @@ class CarlaRosBridge(Parent):
         """
         return self.ros_timestamp
 
-    def publish_ros_message(self, topic, msg):
+    def publish_ros_message(self, topic, msg, is_latched=False):
         """
         Function (override) to publish ROS messages.
 
@@ -113,15 +115,13 @@ class CarlaRosBridge(Parent):
         :return:
         """
         if topic == 'tf':
-            # transform are merged in same message
-            self.tf_to_publish.append(msg)
-        elif topic == '/carla/objects':
-            # objects are collected in same message
-            self.object_array.objects.append(msg)
+            if not self.get_param("challenge_mode"):
+                # transform are merged in same message
+                self.tf_to_publish.append(msg)
         else:
             if topic not in self.publishers:
                 self.publishers[topic] = rospy.Publisher(
-                    topic, type(msg), queue_size=10)
+                    topic, type(msg), queue_size=10, latch=is_latched)
             self.msgs_to_publish.append((self.publishers[topic], msg))
 
     def get_param(self, key, default=None):
@@ -212,14 +212,12 @@ class CarlaRosBridge(Parent):
 
         :return:
         """
-        tf_msg = TFMessage(self.tf_to_publish)
-        self.msgs_to_publish.append((self.publishers['tf'], tf_msg))
-        self.tf_to_publish = []
-
-        self.object_array.header = self.get_msg_header()
-        self.msgs_to_publish.append(
-            (self.publishers['/carla/objects'], self.object_array))
-        self.object_array = ObjectArray()
+        if not self.get_param("challenge_mode"):
+            tf_msg = TFMessage(self.tf_to_publish)
+            self.msgs_to_publish.append((self.publishers['tf'], tf_msg))
+            self.tf_to_publish = []
+            self.publish_ros_message(
+                '/carla/objects', ObjectSensor.get_filtered_objectarray(self, None))
 
     def send_msgs(self):
         """
@@ -265,3 +263,12 @@ class CarlaRosBridge(Parent):
         :rtype: list
         """
         return self.actor_list
+
+    def get_filtered_objectarray(self, filtered_id):
+        """
+        get objectarray of available actors, except the one with the filtered id
+
+        :return: objectarray of actors
+        :rtype: derived_object_msgs.ObjectArray
+        """
+        return ObjectSensor.get_filtered_objectarray(self, filtered_id)
