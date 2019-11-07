@@ -158,7 +158,7 @@ def main():
         rospy.logwarn('Radar started publishing')
         publisher(npc_list, ego_vehicle)
         
-        rospy.logingo('Radar delete world and client')
+        rospy.loginfo('Radar delete world and client')
         del carla_world
         del carla_client
 
