@@ -77,7 +77,7 @@ class Child(Parent):
         """
         return self.parent.get_current_ros_time()
 
-    def publish_ros_message(self, topic, msg):
+    def publish_ros_message(self, topic, msg, is_latched=False):
         """
         Function (override) to publish ROS messages.
 
@@ -89,7 +89,7 @@ class Child(Parent):
         :type msg: a valid ROS message type
         :return:
         """
-        self.parent.publish_ros_message(topic, msg)
+        self.parent.publish_ros_message(topic, msg, is_latched)
 
     def get_param(self, key, default=None):
         """
@@ -187,3 +187,12 @@ class Child(Parent):
         :rtype: list
         """
         return self.parent.get_actor_list()
+
+    def get_filtered_objectarray(self, filtered_id):
+        """
+        get objectarray of available actors, except the one with the filtered id
+
+        :return: objectarray of actors
+        :rtype: derived_object_msgs.ObjectArray
+        """
+        return self.parent.get_filtered_objectarray(filtered_id)

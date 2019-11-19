@@ -208,6 +208,7 @@ def carla_velocity_to_ros_twist(carla_linear_velocity, carla_angular_velocity, c
     ros_twist.angular.z = -math.radians(carla_angular_velocity.z)
     return ros_twist
 
+
 def carla_vector_to_ros_vector_rotated(carla_vector, carla_rotation):
     """
     Rotate carla vector, return it as ros vector
@@ -225,8 +226,7 @@ def carla_vector_to_ros_vector_rotated(carla_vector, carla_rotation):
     ros_vector.y = -tmp_array[1]
     ros_vector.z = tmp_array[2]
     return ros_vector
-
-
+    
 def carla_velocity_to_numpy_vector(carla_velocity):
     """
     Convert a carla velocity to a numpy array

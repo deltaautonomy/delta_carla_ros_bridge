@@ -138,6 +138,7 @@ class Actor(Child):
     def get_current_ros_twist(self):
         """
         Function to provide the current ROS twist
+
         :return: the ROS twist of this actor
         :rtype: geometry_msgs.msg.Twist
         """
@@ -145,6 +146,9 @@ class Actor(Child):
             self.carla_actor.get_velocity(),
             self.carla_actor.get_angular_velocity(),
             self.carla_actor.get_transform().rotation)
+        
+        # return trans.carla_velocity_to_ros_twist(
+        #     self.carla_actor.get_velocity())
 
     def get_current_ros_accel(self):
         """

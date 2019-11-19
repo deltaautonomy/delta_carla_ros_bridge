@@ -46,6 +46,10 @@ class Sensor(Actor):
             return Lidar(carla_actor=carla_actor, parent=parent)
         if carla_actor.type_id.startswith("sensor.other.gnss"):
             return Gnss(carla_actor=carla_actor, parent=parent)
+        if carla_actor.type_id.startswith("sensor.other.collision"):
+            return CollisionSensor(carla_actor=carla_actor, parent=parent)
+        if carla_actor.type_id.startswith("sensor.other.lane_invasion"):
+            return LaneInvasionSensor(carla_actor=carla_actor, parent=parent)
         else:
             return Sensor(carla_actor=carla_actor, parent=parent)
 
@@ -116,7 +120,7 @@ class Sensor(Actor):
         """
         header = super(Sensor, self).get_msg_header(use_parent_frame)
         # use timestamp of current sensor data
-        header.stamp = rospy.Time.now()#rospy.Time.from_sec(self.current_sensor_data.timestamp)
+        header.stamp = rospy.Time.from_sec(self.current_sensor_data.timestamp)
         return header
 
     def _callback_sensor_data(self, carla_sensor_data):
@@ -156,7 +160,7 @@ class Sensor(Actor):
 
         In general sensors are also actors, therefore they contain a transform that is updated
         within each tick.
-        But the TF beeing published should exactly match the transform received by SensorData.
+        But the TF being published should exactly match the transform received by SensorData.
 
         :return: the ROS transform of this actor
         :rtype: geometry_msgs.msg.Transform
@@ -181,3 +185,5 @@ class Sensor(Actor):
 from carla_ros_bridge.camera import Camera  # noqa, pylint: disable=wrong-import-position
 from carla_ros_bridge.lidar import Lidar   # noqa, pylint: disable=wrong-import-position
 from carla_ros_bridge.gnss import Gnss   # noqa, pylint: disable=wrong-import-position
+from carla_ros_bridge.collision_sensor import CollisionSensor   # noqa, pylint: disable=wrong-import-position
+from carla_ros_bridge.lane_invasion_sensor import LaneInvasionSensor   # noqa, pylint: disable=wrong-import-position

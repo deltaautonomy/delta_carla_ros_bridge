@@ -8,6 +8,7 @@ Version : 1.0.0
 Date    : Apr 08, 2019
 '''
 
+import time
 import random
 import threading
 
@@ -95,7 +96,7 @@ def publisher(actor_list, ego_vehicle):
         ground_truth_msg = TrackArray()
         for ground_truth_vehicle in ground_truth:
             track = Track()
-            track.label = "vehicle"
+            track.label = 'vehicle'
             track.x = ground_truth_vehicle.x - radar_transform[0]
             track.y = ground_truth_vehicle.y - radar_transform[1]
             track.vx = ground_truth_vehicle.velocity[0]
@@ -118,45 +119,54 @@ def publisher(actor_list, ego_vehicle):
 
 
 def main():
-    """
+    '''
     main function for carla simulator ROS bridge
-    maintaiing the communication client and the CarlaRosBridge objects
-    """
-    rospy.init_node("radar_client", anonymous=True)
+    maintaining the communication client and the CarlaRosBridge objects
+    '''
+    rospy.init_node('radar_client', anonymous=True)
     params = rospy.get_param('carla')
     host = params['host']
     port = params['port']
 
-    rospy.loginfo("Trying to connect to {host}:{port}".format(host=host, port=port))
+    rospy.loginfo('Radar trying to connect to {host}:{port}'.format(host=host, port=port))
 
     try:
         carla_client = carla.Client(host=host, port=port)
         carla_client.set_timeout(2000)
         carla_world = carla_client.get_world()
-        rospy.loginfo("Connected")\
+        rospy.logwarn('Radar Connected')
 
-        # Get all  vehicle actors in environment
-        actor_list = carla_world.get_actors().filter('vehicle.*')
-        npc_list = []
-
-        # Get ego vehicle object and remove it from actor list
         ego_vehicle = None
-        for actor in actor_list:
-            attribute_val = actor.attributes['role_name']
-            if attribute_val == 'hero':
-                ego_vehicle = actor
+        while ego_vehicle is None:
+            # Get all  vehicle actors in environment
+            actor_list = carla_world.get_actors().filter('vehicle.*')
+            npc_list = []
+
+            # Get ego vehicle object and remove it from actor list
+            for actor in actor_list:
+                attribute_val = actor.attributes['role_name']
+                if attribute_val == 'ego_vehicle':
+                    ego_vehicle = actor
+                else:
+                    npc_list.append(actor)
+
+            if ego_vehicle is not None: break
             else:
-                npc_list.append(actor)
+                rospy.logwarn('Ego vehicle not found, will keep trying after 1s...')
+                time.sleep(1)
 
-        if ego_vehicle is not None:
-            publisher(npc_list, ego_vehicle)
-
-        rospy.logdebug("Delete world and client")
+        rospy.logwarn('Radar started publishing')
+        publisher(npc_list, ego_vehicle)
+        
+        rospy.loginfo('Radar delete world and client')
         del carla_world
         del carla_client
 
+    except Exception as error:
+        rospy.logerr('RADAR Error {}'.format(error))
+
     finally:
-        rospy.loginfo("Done")
+        rospy.logwarn('RADAR Node Exiting')
 
 
 if __name__ == '__main__':
