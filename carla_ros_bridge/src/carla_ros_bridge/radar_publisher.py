@@ -163,7 +163,7 @@ def main():
         del carla_client
 
     except Exception as error:
-        rospy.logerr('RADAR Error', error)
+        rospy.logerr('RADAR Error {}'.format(error))
 
     finally:
         rospy.logwarn('RADAR Node Exiting')
