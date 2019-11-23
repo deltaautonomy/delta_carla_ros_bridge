@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="carla_manual_control" type="delta_run_collision_scenario_pittsburgh.py" name="delta_run_collision_scenario_pittsburgh" output="screen"/>
+</launch>
