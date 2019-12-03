@@ -49,14 +49,6 @@ class CarlaRosBridge(Parent):
         self.msgs_to_publish = []
         self.actor_list = []
 
-        # register callback to create/delete actors
-        self.update_child_actors_lock = threading.Lock()
-        self.carla_world.on_tick(self._carla_update_child_actors)
-
-        # register callback to update actors
-        self.update_lock = threading.Lock()
-        self.carla_world.on_tick(self._carla_time_tick)
-
         self.publishers = {}
         self.publishers['clock'] = rospy.Publisher(
             'clock', Clock, queue_size=10)
@@ -68,6 +60,14 @@ class CarlaRosBridge(Parent):
             self.publishers['/carla/objects'] = rospy.Publisher(
                 '/carla/objects', ObjectArray, queue_size=10)
             self.object_array = ObjectArray()
+
+        # register callback to create/delete actors
+        self.update_child_actors_lock = threading.Lock()
+        self.carla_world.on_tick(self._carla_update_child_actors)
+
+        # register callback to update actors
+        self.update_lock = threading.Lock()
+        self.carla_world.on_tick(self._carla_time_tick)
 
         self.map = Map(carla_world=self.carla_world, parent=self, topic='/map')
 

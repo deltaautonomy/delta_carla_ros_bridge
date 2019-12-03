@@ -25,7 +25,6 @@ class Vehicle:
     bounding box with points (x_max, y_max) and (x_min,y_min)'''
 
     # NOTE: y_max is not actually max y co-ordinate and similarly for y_min
-    # NOTE: Get actual vehicle ID to add as an attribute
     def __init__(self, actor_id, bbox, velocity):
         self.id = actor_id
         self.x = bbox[0]
@@ -55,7 +54,7 @@ def field_of_view_filter(vehicles, radar):
     return filtered_vehicles
 
 
-def noise_function(x_pos, radar, model):
+def noise_function(x_pos, radar, model='linear'):
     '''
     Helper function to add RADAR based on some function
     Returns RADAR noise based on distance of object from RADAR
@@ -75,8 +74,11 @@ def noise_function(x_pos, radar, model):
         raise Exception('Noise model not supported')
 
 
-def add_radar_noise(detected_vehicles, radar, model):
+def add_radar_noise(detected_vehicles, radar, model,
+    dropout_prob=0.1, ghost_prob=0.05):
+    detected_vehicles_noisy = []
     for vehicle in detected_vehicles:
+        # Add noise on detections (position and velocity)
         noise = noise_function(vehicle.x, radar, 'linear')
         vehicle.y_max += noise / 3
         vehicle.y_min += noise / 3
@@ -87,7 +89,27 @@ def add_radar_noise(detected_vehicles, radar, model):
         vehicle.velocity[0] += noise / 3
         vehicle.velocity[1] += noise / 5
 
-    return detected_vehicles
+        # Dropouts with certain probability
+        prob = np.random.rand()
+        if prob > dropout_prob:
+            detected_vehicles_noisy.append(vehicle)
+
+        # Add ghost detections (false positives) with certain probability
+        prob = np.random.rand()
+        if prob < ghost_prob:
+            # Generate random data
+            random_track_id = np.random.randint(100, 150)
+            random_x = np.random.rand() * 95 + 5   # X-axis range: +005m to +100m
+            random_y = np.random.rand() * 15 - 10  # Y-axis range: -010m to +005m
+            random_bbox = np.array([[random_x, random_y, 0.0] for _ in range(3)]).flatten()
+            random_velocity = np.r_[np.random.normal() * 0.25, np.random.normal() * 0.1]
+            
+            # Create ghost vehicle and filter within FOV
+            ghost_vehicle = Vehicle(random_track_id, random_bbox, random_velocity)
+            ghost_vehicle = field_of_view_filter([ghost_vehicle], radar)
+            detected_vehicles_noisy.append(ghost_vehicle)
+
+    return detected_vehicles_noisy
 
 
 def detect_vehicles_fov(vehicles, radar):
@@ -160,7 +182,7 @@ def simulate_radar(theta, radius, vehicles):
     return detected_vehicles, detected_vehicles_noise
 
 
-def visualize_radar(vehicles, detected_vehicles, radar, Truck):
+def visualize_radar(vehicles, detected_vehicles, radar, ego_vehicle):
     '''This function shows a scatter plot of vehicles in environment,
     the RADAR detected vehicles, and the ego vehicle'''
     env_plot = [[vehicle.x, vehicle.y] for vehicle in vehicles]
@@ -172,10 +194,10 @@ def visualize_radar(vehicles, detected_vehicles, radar, Truck):
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
 
-    ax1.scatter(env_plot[:, 0], env_plot[:, 1], s=10, c='b', marker='s', label='All vehicles')
+    ax1.scatter(env_plot[:, 0], env_plot[:, 1], s=10, c='b', marker='s', label='Carla Vehicles')
     if len(detected_vehicles) != 0:
         ax1.scatter(det_plot[:, 0], det_plot[:, 1], s=10, c='r', marker='o', label='Detected Vehicles')
-    ax1.scatter(Truck.x, Truck.y, s=15, c='g', marker='+', label='Ego Vehicle')
+    ax1.scatter(ego_vehicle.x, ego_vehicle.y, s=15, c='g', marker='+', label='Ego Vehicle')
     
     # Plot RADAR FOV
     xlim = np.tan(radar.theta / 2) * radar.r
