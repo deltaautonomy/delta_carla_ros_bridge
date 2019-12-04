@@ -139,14 +139,15 @@ def get_actor_display_name(actor, truncate=250):
 
 
 class World(object):
-    def __init__(self, carla_world, hud, spawn_point):
+    def __init__(self, carla_world, hud, spawn_point, spawn_top_camera):
         self.world = carla_world
         self.hud = hud
         self.vehicle = None
         #self.lidar = None
         self.gnss_sensor = None
         self.rgb_camera = None
-        #self.depth_camera = None
+        self.rgb_top_camera = None
+        self.spawn_top_camera = spawn_top_camera
         #self.segmentation_camera = None
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
@@ -174,25 +175,35 @@ class World(object):
             # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
             self.vehicle = self.world.try_spawn_actor(blueprint, spawn_point_collision)
             print("spawn point", spawn_point_collision)
+        
         # Set up the sensors.
         #bp_lidar = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
         #self.lidar = self.world.spawn_actor(
         #    bp_lidar, carla.Transform(carla.Location(x=-1.6, z=1.7)), attach_to=self.vehicle)
+        
         bp_gnss = self.world.get_blueprint_library().find('sensor.other.gnss')
         self.gnss_sensor = self.world.spawn_actor(
             bp_gnss, carla.Transform(carla.Location(x=2.2, z=2.5), carla.Rotation(pitch=-20)), attach_to=self.vehicle)
-        #bp_depth = self.world.get_blueprint_library().find('sensor.camera.depth')
-        #self.depth_camera = self.world.spawn_actor(
-        #    bp_depth, carla.Transform(carla.Location(x=2.2, z=2.5), carla.Rotation(pitch=-20)), attach_to=self.vehicle)
+        
+        if self.spawn_top_camera:
+            bp_rgb_top = self.world.get_blueprint_library().find('sensor.camera.rgb')
+            bp_rgb_top.set_attribute('role_name', 'top')
+            bp_rgb_top.set_attribute('image_size_x', '800')
+            bp_rgb_top.set_attribute('image_size_y', '450')
+            self.rgb_top_camera = self.world.spawn_actor(
+               bp_rgb_top, carla.Transform(carla.Location(x=10.0, z=30.0), carla.Rotation(pitch=-90)), attach_to=self.vehicle)
+
         # bp_segmentation = self.world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
         # self.segmentation_camera = self.world.spawn_actor(
         #     bp_segmentation, carla.Transform(carla.Location(x=2.2, z=2.5), carla.Rotation(pitch=-20)), attach_to=self.vehicle)
+        
         bp_rgb = self.world.get_blueprint_library().find('sensor.camera.rgb')
         bp_rgb.set_attribute('image_size_x', str(self.hud.dim[0]))
         bp_rgb.set_attribute('image_size_y', str(self.hud.dim[1]))
         self.rgb_camera = self.world.spawn_actor(
             bp_rgb, carla.Transform(carla.Location(x=2.2, z=2.5), carla.Rotation(pitch=-20)), attach_to=self.vehicle)    
         self.rgb_camera.listen(lambda image: self._parse_image(weakref.ref(self), image))
+        
         actor_type = get_actor_display_name(self.vehicle)
         self.hud.notification(actor_type)
 
@@ -222,14 +233,17 @@ class World(object):
         array = array[:, :, :3]
         array = array[:, :, ::-1]
         self._surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))    
+    
     def destroy(self):
         actors = [
             #self.lidar,
             self.rgb_camera,
             self.vehicle,
-            #self.depth_camera,
+            #self.rgb_top_camera,
             self.gnss_sensor]
             #self.segmentation_camera]
+        if self.spawn_top_camera:
+            actors.append(self.rgb_top_camera)
         for actor in actors:
             if actor is not None:
                 actor.destroy()
@@ -524,10 +538,10 @@ def game_loop(args):
 
         npc_spawn_points = [x for x in spawn_points if x is not spawn_points[3]]
         ########
-        NPCs = collision_scenario.NPC(client.get_world(), 5, npc_spawn_points)
+        NPCs = collision_scenario.NPC(client.get_world(), args.number_of_npc, npc_spawn_points)
         #########
         hud = HUD(args.width, args.height)
-        world = World(client.get_world(), hud, spawn_points[0])
+        world = World(client.get_world(), hud, spawn_points[0], args.spawn_top_camera)
         controller = KeyboardControl(world, args.autopilot)
 
         colliding_agent = collision_scenario.Colliding_Agent(world.world, world.vehicle)
@@ -570,6 +584,8 @@ class Args:
     port=2000
     autopilot=False
     res="1280x720"
+    spawn_top_camera=True
+    number_of_npc=5
 
 def main():
     args = Args() #argparser.parse_args()

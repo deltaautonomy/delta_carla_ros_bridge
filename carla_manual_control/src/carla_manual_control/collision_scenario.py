@@ -41,7 +41,7 @@ class Colliding_Agent:
         self.map = self.world.get_map()
         self.vehicle = None
         self.main_agent = main_agent
-        self.target_speed = 30 #Km/Hr
+        self.target_speed = 20 #Km/Hr # add gaussian
         dt = 0.05
         self.args_lateral_dict = {
             'K_P': 1.95,
@@ -74,7 +74,7 @@ class Colliding_Agent:
             self.vehicle = self.world.try_spawn_actor(blueprint, spawn_point)
             if self.vehicle is not None:
                 self.vehicle.set_autopilot()
-                print('spawned %r at %s' % (self.vehicle.type_id, spawn_point.location))
+                print('*Collision* Spawned %r at %s' % (self.vehicle.type_id, spawn_point.location))
             else:
                 print("No vehicles to spawn")
                 return False
@@ -91,13 +91,16 @@ class Colliding_Agent:
             self.vehicle.destroy()  
 
     def control_agent(self):
+        # Control the oncoming vehicle to hit into ego vehicle using Carla's PID
         if self.find_distance(self.vehicle.get_transform(), self.main_agent.get_transform()) < 30:
             if self.waypoint is None:
+                # Store the waypoint at the first timestep of lane change
                 self.waypoint = self.map.get_waypoint(self.vehicle.get_transform().location, True)
+                self.vehicle.set_autopilot(False)
             # print(self.main_agent.get_transform())
             # print(waypoint.next(50)[0].get_left_lane())
-            # waypoint.lane_width
-            self.vehicle.set_autopilot(False)
+
+            # Use the waypoint 20 m ahead to come and hit the vehicle ()
             target_waypoint = self.waypoint.next(20)[0].get_left_lane()
             # print(target_waypoint)
             control = self.vehicle_controller.run_step(self.target_speed, target_waypoint)
@@ -123,12 +126,11 @@ class NPC:
             color = random.choice(blueprint.get_attribute('color').recommended_values)
             blueprint.set_attribute('color', color)
         blueprint.set_attribute('role_name', 'autopilot')
-        print(blueprint)
         vehicle = self.world.try_spawn_actor(blueprint, transform)
         if vehicle is not None:
             self.actor_list.append(vehicle)
             vehicle.set_autopilot()
-            # print('*NPC* spawned %r at %s' % (vehicle.type_id, transform.location))
+            print('*NPC* spawned %r at %s' % (vehicle.type_id, transform.location))
             return True
         return False
 
