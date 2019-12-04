@@ -10,19 +10,20 @@ Date    : Apr 08, 2019
 
 import time
 import random
-import threading
+import traceback
 
 import tf
 import carla
 import rospy
 import numpy as np
+
+from delta_msgs.msg import Track, TrackArray
 from geometry_msgs.msg import Point, Polygon, Vector3
 from radar_msgs.msg import RadarTrack, RadarTrackArray
 
 from carla_ros_bridge.bridge import CarlaRosBridge
 from carla_ros_bridge.bridge_with_rosbag import CarlaRosBridgeWithBag
 from carla_ros_bridge.radar import simulate_radar, get_all_vehicles
-from delta_msgs.msg import Track, TrackArray
 
 RADAR_FRAME = '/ego_vehicle/radar'
 VEHICLE_FRAME = '/ego_vehicle'
@@ -164,6 +165,7 @@ def main():
 
     except Exception as error:
         rospy.logerr('RADAR Error {}'.format(error))
+        traceback.print_exc()
 
     finally:
         rospy.logwarn('RADAR Node Exiting')

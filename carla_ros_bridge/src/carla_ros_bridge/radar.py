@@ -75,7 +75,7 @@ def noise_function(x_pos, radar, model='linear'):
 
 
 def add_radar_noise(detected_vehicles, radar, model,
-    dropout_prob=0.1, ghost_prob=0.05):
+    dropout_prob=0.2, ghost_prob=0.3):
     detected_vehicles_noisy = []
     for vehicle in detected_vehicles:
         # Add noise on detections (position and velocity)
@@ -94,20 +94,20 @@ def add_radar_noise(detected_vehicles, radar, model,
         if prob > dropout_prob:
             detected_vehicles_noisy.append(vehicle)
 
-        # Add ghost detections (false positives) with certain probability
-        prob = np.random.rand()
-        if prob < ghost_prob:
-            # Generate random data
-            random_track_id = np.random.randint(100, 150)
-            random_x = np.random.rand() * 95 + 5   # X-axis range: +005m to +100m
-            random_y = np.random.rand() * 15 - 10  # Y-axis range: -010m to +005m
-            random_bbox = np.array([[random_x, random_y, 0.0] for _ in range(3)]).flatten()
-            random_velocity = np.r_[np.random.normal() * 0.25, np.random.normal() * 0.1]
-            
-            # Create ghost vehicle and filter within FOV
-            ghost_vehicle = Vehicle(random_track_id, random_bbox, random_velocity)
-            ghost_vehicle = field_of_view_filter([ghost_vehicle], radar)
-            detected_vehicles_noisy.append(ghost_vehicle)
+    # Add ghost detections (false positives) with certain probability
+    prob = np.random.rand()
+    if prob < ghost_prob:
+        # Generate random data
+        random_track_id = np.random.randint(1000, 1050)
+        random_x = np.random.rand() * 95 + 15  # X-axis range: +015m to +110m
+        random_y = np.random.rand() * 30 - 15  # Y-axis range: -015m to +015m
+        random_bbox = np.array([[random_x, random_y, 0.0] for _ in range(3)]).flatten()
+        random_velocity = np.r_[np.random.normal() * 0.25, np.random.normal() * 0.1, 0.0]
+        
+        # Create ghost vehicle and filter within FOV
+        ghost_vehicle = Vehicle(random_track_id, random_bbox, random_velocity)
+        ghost_vehicle = field_of_view_filter([ghost_vehicle], radar)[0]
+        detected_vehicles_noisy.append(ghost_vehicle)
 
     return detected_vehicles_noisy
 
@@ -151,7 +151,7 @@ def detect_vehicles_fov(vehicles, radar):
 
 
 def parse_velocity(ego_vehicle, vehicle):
-    '''Returns velocity with some added noise'''
+    '''Returns velocity in ego vehicle frame'''
     H_W_to_ego = get_car_bbox_transform(ego_vehicle)
     x_vel = vehicle.get_velocity().x
     y_vel = -vehicle.get_velocity().y
@@ -160,7 +160,6 @@ def parse_velocity(ego_vehicle, vehicle):
     # Transforming them w.r.t ego vehicle frame
     vel_vec = np.array([x_vel, y_vel, z_vel, 0])
     vel_ego = np.matmul(np.linalg.pinv(H_W_to_ego), vel_vec)
-    vel_ego = vel_ego.tolist()
 
     return vel_ego
 
@@ -168,9 +167,9 @@ def parse_velocity(ego_vehicle, vehicle):
 def get_all_vehicles(actor_list, ego_vehicle, transform):
     vehicles = []
     for actor in actor_list:
-        ego_velocity = parse_velocity(ego_vehicle, actor)
+        velocity_in_ego_frame = parse_velocity(ego_vehicle, actor)
         bbox = get_bounding_box(ego_vehicle, actor, transform)
-        vehicles.append(Vehicle(actor.id, bbox, ego_velocity))
+        vehicles.append(Vehicle(actor.id, bbox, velocity_in_ego_frame))
     return vehicles
 
 
