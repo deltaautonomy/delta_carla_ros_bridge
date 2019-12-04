@@ -75,10 +75,11 @@ def noise_function(x_pos, radar, model='linear'):
 
 
 def add_radar_noise(detected_vehicles, radar, model,
-    dropout_prob=0.2, ghost_prob=0.3):
+    dropout_prob=0.1, ghost_prob=0.3):
     detected_vehicles_noisy = []
     for vehicle in detected_vehicles:
         # Add noise on detections (position and velocity)
+        if vehicle.id == 65000: print('WARNING! Radar IDs too high, reset Carla.')
         noise = noise_function(vehicle.x, radar, 'linear')
         vehicle.y_max += noise / 3
         vehicle.y_min += noise / 3
@@ -90,15 +91,18 @@ def add_radar_noise(detected_vehicles, radar, model,
         vehicle.velocity[1] += noise / 5
 
         # Dropouts with certain probability
-        prob = np.random.rand()
-        if prob > dropout_prob:
-            detected_vehicles_noisy.append(vehicle)
+        # prob = np.random.rand()
+        # if prob > dropout_prob:
+        detected_vehicles_noisy.append(vehicle)
+
+    # TODO: Remove
+    return detected_vehicles_noisy
 
     # Add ghost detections (false positives) with certain probability
     prob = np.random.rand()
     if prob < ghost_prob:
         # Generate random data
-        random_track_id = np.random.randint(1000, 1050)
+        random_track_id = 65000
         random_x = np.random.rand() * 95 + 15  # X-axis range: +015m to +110m
         random_y = np.random.rand() * 30 - 15  # Y-axis range: -015m to +015m
         random_bbox = np.array([[random_x, random_y, 0.0] for _ in range(3)]).flatten()
@@ -119,6 +123,7 @@ def detect_vehicles_fov(vehicles, radar):
     
     # Sort vehicles based on x values
     fov_vehicles = sorted(fov_vehicles, key=lambda x: x.x)
+    print('FOV - Occlusion', len(fov_vehicles))
     
     # For every detected vehicle my RADAR will not be able to detect the
     # vehicles other detected vehicles are blocking. Every equation will have a slope
@@ -176,8 +181,11 @@ def get_all_vehicles(actor_list, ego_vehicle, transform):
 def simulate_radar(theta, radius, vehicles):
     '''Simulate and visualize RADAR output'''
     radar = RadarParams(theta, radius)
+    print('\nAll', len(vehicles))
     detected_vehicles = detect_vehicles_fov(vehicles, radar)
+    print('\nFOV', len(detected_vehicles))
     detected_vehicles_noise = add_radar_noise(copy.deepcopy(detected_vehicles), radar, model='linear')
+    print('\nFOV + Noise', len(detected_vehicles_noise))
     return detected_vehicles, detected_vehicles_noise
 
 

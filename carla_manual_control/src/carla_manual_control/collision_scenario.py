@@ -32,16 +32,19 @@ import argparse
 import random
 import time
 import math
+import numpy as np
 
 from agents.navigation.controller import VehiclePIDController
 
 class Colliding_Agent:
-    def __init__(self, world, main_agent):
+    def __init__(self, world, main_agent, target_scene = 0):
         self.world = world
         self.map = self.world.get_map()
         self.vehicle = None
         self.main_agent = main_agent
         self.target_speed = 20 #Km/Hr # add gaussian
+        self.scene = target_scene
+        self.increment = 1 
         dt = 0.05
         self.args_lateral_dict = {
             'K_P': 1.95,
@@ -70,7 +73,7 @@ class Colliding_Agent:
             if blueprint.has_attribute('color'):
                 color = random.choice(blueprint.get_attribute('color').recommended_values)
                 blueprint.set_attribute('color', color)
-            blueprint.set_attribute('role_name', 'autopilot')
+            # blueprint.set_attribute('role_name', 'autopilot')
             self.vehicle = self.world.try_spawn_actor(blueprint, spawn_point)
             if self.vehicle is not None:
                 self.vehicle.set_autopilot()
@@ -91,17 +94,62 @@ class Colliding_Agent:
             self.vehicle.destroy()  
 
     def control_agent(self):
+        if (self.scene == 0) or (self.scene == 1) or (self.scene == 3):
+            wait = 35      # Start from 40 meters
+            # Reach the point reach_pt from the current positions
+            reach_pt = 20
+            if self.find_distance(self.vehicle.get_transform(), self.main_agent.get_transform()) < wait:
+                if self.waypoint is None:
+                    # Store the waypoint at the first timestep of lane change
+                    self.waypoint = self.map.get_waypoint(self.vehicle.get_transform().location, True)
+                    self.vehicle.set_autopilot(False)
+
+                target_waypoint = self.waypoint.next(reach_pt)[0].get_left_lane()
+                # print(target_waypoint)
+                control = self.vehicle_controller.run_step(self.target_speed, target_waypoint)
+                self.vehicle.apply_control(control)
+
+        elif (self.scene == 2):
+            wait = 40
+            reach_pt = 20 #np.clip(10 + self.increment, 2.5, 50)
+            # print("Reaching for ", reach_pt, " meters")
+            # Control the oncoming vehicle to hit into ego vehicle using Carla's PID
+            if self.find_distance(self.vehicle.get_transform(), self.main_agent.get_transform()) < wait:
+                self.increment = self.increment - 0.05   
+                if self.waypoint is None:
+                    self.vehicle.set_autopilot(False)
+                # Store the waypoint at the first timestep of lane change
+                self.waypoint = self.map.get_waypoint(self.vehicle.get_transform().location, True)
+                # print(self.main_agent.get_transform())
+                # print(waypoint.next(50)[0].get_left_lane())
+                # Use the waypoint 20 m ahead to come and hit the vehicle ()
+                target_waypoint = self.waypoint.next(reach_pt)[0].get_left_lane()
+                # print(target_waypoint)
+                control = self.vehicle_controller.run_step(self.target_speed, target_waypoint)
+                self.vehicle.apply_control(control)
+
+
+
+
+    def control_agent_demo(self):
+        if (self.scene == 0):
+            wait = 30      # Start from 30 meters
+            # Reach the point reach_pt from the current positions
+            reach_pt = 20   
+        elif (self.scene == 1):
+            wait = 100
+            reach_pt = 80   
+        # print("Waiting for ", wait, " meters")
         # Control the oncoming vehicle to hit into ego vehicle using Carla's PID
-        if self.find_distance(self.vehicle.get_transform(), self.main_agent.get_transform()) < 30:
+        if self.find_distance(self.vehicle.get_transform(), self.main_agent.get_transform()) < wait:
             if self.waypoint is None:
                 # Store the waypoint at the first timestep of lane change
                 self.waypoint = self.map.get_waypoint(self.vehicle.get_transform().location, True)
                 self.vehicle.set_autopilot(False)
             # print(self.main_agent.get_transform())
             # print(waypoint.next(50)[0].get_left_lane())
-
             # Use the waypoint 20 m ahead to come and hit the vehicle ()
-            target_waypoint = self.waypoint.next(20)[0].get_left_lane()
+            target_waypoint = self.waypoint.next(reach_pt)[0].get_left_lane()
             # print(target_waypoint)
             control = self.vehicle_controller.run_step(self.target_speed, target_waypoint)
             self.vehicle.apply_control(control)
