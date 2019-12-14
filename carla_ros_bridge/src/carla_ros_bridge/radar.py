@@ -75,7 +75,7 @@ def noise_function(x_pos, radar, model='linear'):
 
 
 def add_radar_noise(detected_vehicles, radar, model,
-    dropout_prob=0.2, ghost_prob=0.3):
+    dropout_prob=0.15, ghost_prob=0.3):
     detected_vehicles_noisy = []
     for vehicle in detected_vehicles:
         # Add noise on detections (position and velocity)
@@ -98,7 +98,7 @@ def add_radar_noise(detected_vehicles, radar, model,
     prob = np.random.rand()
     if prob < ghost_prob:
         # Generate random data
-        random_track_id = np.random.randint(1000, 1050)
+        random_track_id = 65000
         random_x = np.random.rand() * 95 + 15  # X-axis range: +015m to +110m
         random_y = np.random.rand() * 30 - 15  # Y-axis range: -015m to +015m
         random_bbox = np.array([[random_x, random_y, 0.0] for _ in range(3)]).flatten()

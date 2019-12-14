@@ -188,10 +188,10 @@ class World(object):
         if self.spawn_top_camera:
             bp_rgb_top = self.world.get_blueprint_library().find('sensor.camera.rgb')
             bp_rgb_top.set_attribute('role_name', 'top')
-            bp_rgb_top.set_attribute('image_size_x', '800')
-            bp_rgb_top.set_attribute('image_size_y', '450')
+            bp_rgb_top.set_attribute('image_size_x', '900')
+            bp_rgb_top.set_attribute('image_size_y', '1600')
             self.rgb_top_camera = self.world.spawn_actor(
-               bp_rgb_top, carla.Transform(carla.Location(x=10.0, z=30.0), carla.Rotation(pitch=-90)), attach_to=self.vehicle)
+               bp_rgb_top, carla.Transform(carla.Location(x=10.0, z=5.0), carla.Rotation(pitch=-60)), attach_to=self.vehicle)
 
         # bp_segmentation = self.world.get_blueprint_library().find('sensor.camera.semantic_segmentation')
         # self.segmentation_camera = self.world.spawn_actor(
@@ -536,16 +536,25 @@ def game_loop(args):
 
         spawn_points = list(client.get_world().get_map().get_spawn_points())
 
-        npc_spawn_points = [x for x in spawn_points if x is not spawn_points[3]]
+        if args.scene is not 5:
+            npc_spawn_points = [x for x in spawn_points if x is not spawn_points[scene_list[args.scene]['collision_spawn']]]
+        else:     
+            npc_spawn_points = [x for x in spawn_points]
+        print("{} Spawn Points at: {}".format(len(npc_spawn_points), npc_spawn_points))
         ########
-        NPCs = collision_scenario.NPC(client.get_world(), args.number_of_npc, npc_spawn_points)
+        NPCs = collision_scenario.NPC(client.get_world(), scene_list[args.scene]['npc'], npc_spawn_points)
         #########
         hud = HUD(args.width, args.height)
-        world = World(client.get_world(), hud, spawn_points[0], args.spawn_top_camera)
+        world = World(client.get_world(), hud, spawn_points[scene_list[args.scene]['ego_spawn']], args.spawn_top_camera)
         controller = KeyboardControl(world, args.autopilot)
 
-        colliding_agent = collision_scenario.Colliding_Agent(world.world, world.vehicle)
-        colliding_agent.create_agent(spawn_points[3])
+        # Set the scenarios for collision
+        # scene = 0   # Default 30m crash scenario
+        # scene = 2   # 150m crash scenario
+
+        colliding_agent = collision_scenario.Colliding_Agent(world.world, world.vehicle, Args.scene)
+        colliding_agent.create_agent(spawn_points[scene_list[args.scene]['collision_spawn']])
+
 
         world_carla = world.world
         ego = world.vehicle.attributes['role_name']
@@ -578,6 +587,13 @@ def game_loop(args):
 # -- main() --------------------------------------------------------------------
 # ==============================================================================
 
+scene_list = [{'npc': 5, 'ego_spawn': 1, 'collision_spawn': 4},
+              {'npc': 8, 'ego_spawn': 1, 'collision_spawn': 4},
+              {'npc': 5, 'ego_spawn': 1, 'collision_spawn': 4},
+              {'npc': 6, 'ego_spawn': 1, 'collision_spawn': 2},
+              {'npc': 6, 'ego_spawn': 1, 'collision_spawn': 4},
+              {'npc': 7, 'ego_spawn': 1, 'collision_spawn': 2}]
+
 class Args:
     debug=False
     host="127.0.0.1"
@@ -586,8 +602,11 @@ class Args:
     res="1280x720"
     spawn_top_camera=True
     number_of_npc=5
+    scene = 0
 
 def main():
+    scene = rospy.get_param("collision_scene", 0)
+    Args.scene = scene
     args = Args() #argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]
